@@ -56,6 +56,7 @@ include_directories(
 add_library(blackboard
     include/blackboard/blackboard.h
     include/blackboard/key.h
+    include/blackboard/variant.h
     src/blackboard.cpp
 )
 #target_link_libraries(blackboard ${catkin_LIBRARIES})

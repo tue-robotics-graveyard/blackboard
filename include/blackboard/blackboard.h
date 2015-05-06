@@ -2,6 +2,7 @@
 #define BLACKBOARD_BLACKBOARD_H_
 
 #include "blackboard/key.h"
+#include "blackboard/variant.h"
 
 #include <vector>
 #include <map>
@@ -17,6 +18,7 @@ typedef void (*trigger_function)(const Blackboard&);
 struct Data
 {
     std::vector<trigger_function> trigger_functions;
+    Variant value;
 };
 
 class Blackboard
@@ -37,7 +39,17 @@ public:
         Key key = key_map_.size();
         key_map_[name] = key;
         data_.push_back(Data());
+
         return key;
+    }
+
+    Key getKey(const char* name) const
+    {
+        std::map<std::string, Key>::const_iterator it = key_map_.find(name);
+        if (it != key_map_.end())
+            return it->second;
+
+        return -1;
     }
 
     void addTrigger(Key key, trigger_function func)
@@ -45,16 +57,27 @@ public:
         data_[key].trigger_functions.push_back(func);
     }
 
-    void setValue(Key key, const char* value)
+    template<typename T>
+    void setValue(Key key, T value)
     {
-        const std::vector<trigger_function>& trigger_functions = data_[key].trigger_functions;
+        Data& d = data_[key];
+
+        // Set value
+        d.value.setValue<T>(value);
+
+        // Call triggers
+        const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
         for(std::vector<trigger_function>::const_iterator it = trigger_functions.begin(); it != trigger_functions.end(); ++it)
         {
             (*it)(*this);
         }
+    }
 
-        // TODO: set value
-
+    template<typename T>
+    const T& getValue(Key key) const
+    {
+        const Data& d = data_[key];
+        return d.value.getValue<T>();
     }
 
 private:

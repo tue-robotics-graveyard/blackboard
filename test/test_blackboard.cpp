@@ -5,6 +5,9 @@
 void test_trigger(const bb::Blackboard& b)
 {
     std::cout << "Triggers!" << std::endl;
+
+    bb::Key k = b.getKey("test");
+    std::cout << b.getValue<const char*>(k) << std::endl;
 }
 
 int main(int argc, char **argv)
