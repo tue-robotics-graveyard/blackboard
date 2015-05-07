@@ -3,6 +3,7 @@
 
 #include "blackboard/key.h"
 #include "blackboard/variant.h"
+#include "blackboard/serializer.h"
 
 #include <vector>
 #include <map>
@@ -21,21 +22,67 @@
 namespace bb
 {
 
+// ----------------------------------------------------------------------------------------------------
+
+class ROSRBytes : public RBytes
+{
+public:
+
+    ROSRBytes(const blackboard::ValueUpdate& msg) : msg_(msg) {}
+
+    const unsigned char* ptr() const { return &msg_.data[0]; }
+    std::size_t size() const { return msg_.data.size(); }
+
+private:
+
+    const blackboard::ValueUpdate& msg_;
+
+};
+
+// ----------------------------------------------------------------------------------------------------
+
+class ROSWBytes : public WBytes
+{
+public:
+
+    ROSWBytes(blackboard::ValueUpdate& msg) : msg_(msg) {}
+
+    unsigned char* ptr() { return &msg_.data[0]; }
+    std::size_t size() const { return msg_.data.size(); }
+    bool resize(std::size_t size) { msg_.data.resize(size); return true; }
+
+private:
+
+    blackboard::ValueUpdate& msg_;
+
+};
+
+// ----------------------------------------------------------------------------------------------------
+
 class Blackboard;
-typedef void (*trigger_function)(const Blackboard&);
+typedef void (*trigger_function)(const Blackboard&, const Key& key);
+
+// ----------------------------------------------------------------------------------------------------
 
 struct Data
 {
+    Data() : serializer(0) {}
+
     std::vector<trigger_function> trigger_functions;
     Variant value;
     ros::Publisher pub;
     std::map<std::string, ros::Subscriber> subs;
+    Serializer* serializer;
 };
+
+// ----------------------------------------------------------------------------------------------------
 
 struct BlackboardConnection
 {
     ros::Subscriber sub_keys;
 };
+
+// ----------------------------------------------------------------------------------------------------
 
 class Blackboard
 {
@@ -51,7 +98,7 @@ public:
 
     }
 
-    Key getKey(const char* name)
+    Key addKey(const char* name, Serializer* serializer = 0)
     {
         std::map<std::string, Key>::iterator it = key_map_.find(name);
         if (it != key_map_.end())
@@ -62,6 +109,7 @@ public:
         data_.push_back(Data());
 
         Data& d = data_.back();
+        d.serializer = serializer;
 
         ros::NodeHandle nh("~");
         d.pub = nh.advertise<blackboard::ValueUpdate>("bb/data/" + std::string(name), 1);
@@ -97,13 +145,14 @@ public:
         const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
         for(std::vector<trigger_function>::const_iterator it = trigger_functions.begin(); it != trigger_functions.end(); ++it)
         {
-            (*it)(*this);
+            (*it)(*this, key);
         }
 
-        if (d.pub.getNumSubscribers() > 0)
+        if (d.pub.getNumSubscribers() > 0 && d.serializer)
         {
             blackboard::ValueUpdate msg;
-            msg.data = "test";
+            ROSWBytes bytes(msg);
+            d.serializer->serialize(d.value, bytes);
             d.pub.publish(msg);
         }
 
@@ -168,7 +217,20 @@ public:
     void cbValue(const blackboard::ValueUpdateConstPtr& msg, Key key)
     {
         Data& d = data_[key];
-        std::cout << "Received value: " << msg->data << std::endl;
+        if (!d.serializer)
+        {
+            std::cout << "No serializer for key " << key << std::endl;
+            return;
+        }
+
+        d.serializer->deserialize(ROSRBytes(*msg), d.value);
+
+        // Call triggers
+        const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
+        for(std::vector<trigger_function>::const_iterator it = trigger_functions.begin(); it != trigger_functions.end(); ++it)
+        {
+            (*it)(*this, key);
+        }
     }
 
     void updateConnections()

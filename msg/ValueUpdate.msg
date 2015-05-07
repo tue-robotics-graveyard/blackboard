@@ -1,3 +1,2 @@
 string name
-#uint8[] data
-string data
+uint8[] data

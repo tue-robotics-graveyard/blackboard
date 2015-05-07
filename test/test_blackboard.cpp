@@ -2,13 +2,37 @@
 
 #include <iostream>
 
-void test_trigger(const bb::Blackboard& b)
-{
-    std::cout << "Triggers!" << std::endl;
+#include <ros/this_node.h>
 
-    bb::Key k = b.findKey("test");
-    std::cout << b.getValue<const char*>(k) << std::endl;
+bb::Key my_key;
+
+// ----------------------------------------------------------------------------------------------------
+
+class IntSerializer : public bb::Serializer
+{
+
+    void serialize(const bb::Variant& data, bb::WBytes& bytes)
+    {
+        int i = data.getValue<int>();
+        bytes.resize(sizeof(i));
+        memcpy(bytes.ptr(), (unsigned char*)&i, bytes.size());
+    }
+
+    void deserialize(const bb::RBytes& bytes, bb::Variant& v)
+    {
+        int* i = (int*)&bytes.ptr()[0];
+        v.setValue<int>(*i);
+    }
+};
+
+// ----------------------------------------------------------------------------------------------------
+
+void test_trigger(const bb::Blackboard& b, const bb::Key& key)
+{
+    std::cout <<  ros::this_node::getName() << ": Value update: " << b.getValue<int>(key) << std::endl;
 }
+
+// ----------------------------------------------------------------------------------------------------
 
 int main(int argc, char **argv)
 {
@@ -37,14 +61,24 @@ int main(int argc, char **argv)
         b.addExternal(ss_name.str());
     }
 
-    bb::Key k = b.getKey("test");
+    for(int i = 0; i < N; ++i)
+    {
+        std::stringstream ss_key_name;
+        ss_key_name << "key_" << i;
 
-    b.addTrigger(k, test_trigger);
+        bb::Key k = b.addKey(ss_key_name.str().c_str(), new IntSerializer);
+
+        if (i == my_id)
+            my_key = k;
+
+        b.addTrigger(k, test_trigger);
+    }
 
     ros::Rate r(10);
     while(ros::ok())
     {
-        b.setValue(k, "bla");
+        b.updateValues();
+        b.setValue(my_key, my_id * 123);
         r.sleep();
     }
 
