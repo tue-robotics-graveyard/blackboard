@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8.3)
 project(blackboard)
 
 find_package(catkin REQUIRED COMPONENTS
+    message_generation
+    roscpp
 )
 
 # find_package(Boost REQUIRED COMPONENTS system program_options)
@@ -13,11 +15,12 @@ find_package(catkin REQUIRED COMPONENTS
 # ------------------------------------------------------------------------------------------------
 
 # Generate messages
-# add_message_files(
-#    FILES
-#    message1.msg
-#    ...
-# )
+add_message_files(
+   FILES
+   ValueUpdate.msg
+   ValueUpdates.msg
+   KeyUpdate.msg
+)
 
 # Generate services
 # add_service_files(
@@ -27,11 +30,11 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 # Generate added messages and services with any dependencies listed here
-# generate_messages(
+generate_messages(
 #    DEPENDENCIES
 #    geometry_msgs
 #    ...
-# )
+)
 
 # ------------------------------------------------------------------------------------------------
 #                                          CATKIN EXPORT
@@ -59,7 +62,7 @@ add_library(blackboard
     include/blackboard/variant.h
     src/blackboard.cpp
 )
-#target_link_libraries(blackboard ${catkin_LIBRARIES})
+target_link_libraries(blackboard ${catkin_LIBRARIES})
 
 # ------------------------------------------------------------------------------------------------
 #                                              TEST
