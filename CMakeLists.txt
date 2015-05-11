@@ -61,6 +61,7 @@ add_library(blackboard
     include/blackboard/key.h
     include/blackboard/variant.h
     include/blackboard/serializer.h
+    include/blackboard/buffer.h
     src/blackboard.cpp
 )
 target_link_libraries(blackboard ${catkin_LIBRARIES})

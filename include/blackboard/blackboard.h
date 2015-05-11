@@ -4,6 +4,7 @@
 #include "blackboard/key.h"
 #include "blackboard/variant.h"
 #include "blackboard/serializer.h"
+#include "blackboard/buffer.h"
 
 #include <vector>
 #include <map>
@@ -69,7 +70,7 @@ struct Data
     Data() : serializer(0) {}
 
     std::vector<trigger_function> trigger_functions;
-    Variant value;
+    Buffer<Variant> buffer;
     ros::Publisher pub;
     std::map<std::string, ros::Subscriber> subs;
     Serializer* serializer;
@@ -98,7 +99,7 @@ public:
 
     }
 
-    Key addKey(const char* name, Serializer* serializer = 0)
+    Key addKey(const char* name, Serializer* serializer = 0, unsigned long buffer_size = 0)
     {
         std::map<std::string, Key>::iterator it = key_map_.find(name);
         if (it != key_map_.end())
@@ -110,6 +111,7 @@ public:
 
         Data& d = data_.back();
         d.serializer = serializer;
+        d.buffer.setMaxSize(buffer_size);
 
         ros::NodeHandle nh("~");
         d.pub = nh.advertise<blackboard::ValueUpdate>("bb/data/" + std::string(name), 1);
@@ -134,12 +136,12 @@ public:
     }
 
     template<typename T>
-    void setValue(Key key, T value)
+    void setValue(Key key, Time t, T value)
     {
         Data& d = data_[key];
 
         // Set value
-        d.value.setValue<T>(value);
+        d.buffer.insert(t, value);
 
         // Call triggers
         const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
@@ -151,8 +153,9 @@ public:
         if (d.pub.getNumSubscribers() > 0 && d.serializer)
         {
             blackboard::ValueUpdate msg;
+            msg.timestamp = t;
             ROSWBytes bytes(msg);
-            d.serializer->serialize(d.value, bytes);
+            d.serializer->serialize(value, bytes);
             d.pub.publish(msg);
         }
 
@@ -160,10 +163,19 @@ public:
     }
 
     template<typename T>
-    const T& getValue(Key key) const
+    const T& getValue(Key key, Time t) const
     {
         const Data& d = data_[key];
-        return d.value.getValue<T>();        
+
+        Buffer<Variant>::const_iterator lower, upper;
+        d.buffer.getLowerUpper(t, lower, upper);
+
+        if (lower != d.buffer.end())
+            return lower->second.getValue<T>();
+
+        assert(upper != d.buffer.end());
+
+        return upper->second.getValue<T>();
     }
 
 //    void initCommunication(const std::string& name = "~");
@@ -223,7 +235,9 @@ public:
             return;
         }
 
-        d.serializer->deserialize(ROSRBytes(*msg), d.value);
+        Variant v;
+        d.serializer->deserialize(ROSRBytes(*msg), v);
+        d.buffer.insert(msg->timestamp, v);
 
         // Call triggers
         const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
