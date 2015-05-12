@@ -6,6 +6,8 @@
 namespace bb
 {
 
+typedef double Time;
+
 typedef int Key;
 
 } // end namespace bb

@@ -1,4 +1,5 @@
 #include <blackboard/blackboard.h>
+#include <blackboard/update.h>
 
 #include <iostream>
 
@@ -79,7 +80,12 @@ int main(int argc, char **argv)
     while(ros::ok())
     {
         b.updateValues();
-        b.setValue(my_key, ros::Time::now().toSec(), v * N + my_id);
+
+        bb::Update update;
+        update.setValue(my_key, ros::Time::now().toSec(), v * N + my_id);
+
+        b.update(update);
+
         r.sleep();
         ++v;
     }
