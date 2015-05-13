@@ -66,6 +66,7 @@ add_library(blackboard
     src/blackboard.cpp
 )
 target_link_libraries(blackboard ${catkin_LIBRARIES})
+add_dependencies(blackboard ${PROJECT_NAME}_gencpp)
 
 # ------------------------------------------------------------------------------------------------
 #                                              TEST
