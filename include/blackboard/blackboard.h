@@ -160,7 +160,7 @@ public:
     }
 
     template<typename T>
-    const T& getValue(Key key, Time t) const
+    const T* getValue(Key key, Time t) const
     {
         // get shared access
         boost::shared_lock<boost::shared_mutex> lock(blackboard_mutex_);
@@ -169,13 +169,13 @@ public:
 
         Buffer<Variant>::const_iterator lower, upper;
         d.buffer.getLowerUpper(t, lower, upper);
-
         if (lower != d.buffer.end())
-            return lower->second.getValue<T>();
+            return &lower->second.getValue<T>();
+        else if (upper != d.buffer.end())
+            return &upper->second.getValue<T>();
+        else
+            return NULL;
 
-        assert(upper != d.buffer.end());
-
-        return upper->second.getValue<T>();
     }
 
     void checkTriggers(Key key, Time t, const Variant& value);

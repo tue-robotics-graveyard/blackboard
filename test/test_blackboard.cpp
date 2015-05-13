@@ -30,7 +30,7 @@ class IntSerializer : public bb::Serializer
 
 void test_trigger(const bb::Blackboard& b, const bb::Key& key)
 {
-    std::cout <<  ros::this_node::getName() << ": Value update: " << b.getValue<int>(key, ros::Time::now().toSec()) << std::endl;
+    std::cout <<  ros::this_node::getName() << ": Value update: " << *b.getValue<int>(key, ros::Time::now().toSec()) << std::endl;
 }
 
 // ----------------------------------------------------------------------------------------------------
