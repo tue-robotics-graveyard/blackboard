@@ -73,4 +73,6 @@ target_link_libraries(blackboard ${catkin_LIBRARIES})
 add_executable(test_blackboard test/test_blackboard.cpp)
 target_link_libraries(test_blackboard blackboard)
 
+add_executable(test_new_buffer test/test_new_buffer.cpp)
+
 
