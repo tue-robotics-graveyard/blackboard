@@ -23,6 +23,8 @@
 namespace bb
 {
 
+class Update;
+
 // ----------------------------------------------------------------------------------------------------
 
 class ROSRBytes : public RBytes
@@ -101,6 +103,9 @@ public:
 
     Key addKey(const char* name, Serializer* serializer = 0, unsigned long buffer_size = 0)
     {
+        boost::upgrade_lock<boost::shared_mutex> lock(blackboard_mutex_);       // get upgradable access
+        boost::upgrade_to_unique_lock<boost::shared_mutex> unique_lock(lock);   // get exclusive access
+
         std::map<std::string, Key>::iterator it = key_map_.find(name);
         if (it != key_map_.end())
             return it->second;
@@ -132,51 +137,48 @@ public:
 
     void addTrigger(Key key, trigger_function func)
     {
+        boost::upgrade_lock<boost::shared_mutex> lock(blackboard_mutex_);       // get upgradable access
+        boost::upgrade_to_unique_lock<boost::shared_mutex> unique_lock(lock);   // get exclusive access
+
         data_[key].trigger_functions.push_back(func);
     }
 
     template<typename T>
     void setValue(Key key, Time t, T value)
     {
-        Data& d = data_[key];
-
-        // Set value
-        d.buffer.insert(t, value);
-
-        // Call triggers
-        const std::vector<trigger_function>& trigger_functions = d.trigger_functions;
-        for(std::vector<trigger_function>::const_iterator it = trigger_functions.begin(); it != trigger_functions.end(); ++it)
         {
-            (*it)(*this, key);
+            boost::upgrade_lock<boost::shared_mutex> lock(blackboard_mutex_);       // get upgradable access
+            boost::upgrade_to_unique_lock<boost::shared_mutex> unique_lock(lock);   // get exclusive access
+
+            Data& d = data_[key];
+
+            // Set value
+            d.buffer.insert(t, value);
         }
 
-        if (d.pub.getNumSubscribers() > 0 && d.serializer)
-        {
-            blackboard::ValueUpdate msg;
-            msg.timestamp = t;
-            ROSWBytes bytes(msg);
-            d.serializer->serialize(value, bytes);
-            d.pub.publish(msg);
-        }
-
-        updateConnections();  // Random location; TODO
+        checkTriggers(key, t, value);
     }
 
     template<typename T>
-    const T& getValue(Key key, Time t) const
+    const T* getValue(Key key, Time t) const
     {
+        // get shared access
+        boost::shared_lock<boost::shared_mutex> lock(blackboard_mutex_);
+
         const Data& d = data_[key];
 
         Buffer<Variant>::const_iterator lower, upper;
         d.buffer.getLowerUpper(t, lower, upper);
-
         if (lower != d.buffer.end())
-            return lower->second.getValue<T>();
+            return &lower->second.getValue<T>();
+        else if (upper != d.buffer.end())
+            return &upper->second.getValue<T>();
+        else
+            return NULL;
 
-        assert(upper != d.buffer.end());
-
-        return upper->second.getValue<T>();
     }
+
+    void checkTriggers(Key key, Time t, const Variant& value);
 
 //    void initCommunication(const std::string& name = "~");
 
@@ -247,6 +249,8 @@ public:
         }
     }
 
+    void update(const Update& update);
+
     void updateConnections()
     {
         key_cb_queue_.callAvailable();
@@ -259,9 +263,17 @@ public:
 
 private:
 
+    // DATA
+
     std::map<std::string, Key> key_map_;
 
     std::vector<Data> data_;
+
+    // Mutex for the full blackboard, so all data channels
+    mutable boost::shared_mutex blackboard_mutex_;
+
+
+    // COMMUNICATION
 
     ros::Publisher pub_key_;
 
